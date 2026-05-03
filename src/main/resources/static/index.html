@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>StandupIQ</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app-shell">
+    <header class="topbar">
+        <div>
+            <h1>StandupIQ</h1>
+            <p>Generate standups from GitHub activity.</p>
+        </div>
+        <div class="status-pill" id="apiStatus">Checking API</div>
+    </header>
+
+    <main class="workspace">
+        <section class="panel controls-panel" aria-label="Controls">
+            <div class="panel-header">
+                <h2>Activity Source</h2>
+            </div>
+
+            <form id="activityForm" class="control-grid">
+                <label>
+                    <span>Username</span>
+                    <input id="username" name="username" value="JanWeeee" autocomplete="off" required>
+                </label>
+
+                <label>
+                    <span>Owner</span>
+                    <input id="owner" name="owner" value="JanWeeee" autocomplete="off">
+                </label>
+
+                <label>
+                    <span>Repository</span>
+                    <input id="repo" name="repo" value="standup-iq" autocomplete="off">
+                </label>
+
+                <label>
+                    <span>Branch</span>
+                    <input id="branch" name="branch" value="feature/phase-1-2-3-foundation" autocomplete="off">
+                </label>
+
+                <div class="range-row" role="group" aria-label="Time range">
+                    <button type="button" class="range-button active" data-days="1">1 day</button>
+                    <button type="button" class="range-button" data-days="7">7 days</button>
+                    <label class="custom-days">
+                        <span>Custom</span>
+                        <input id="days" name="days" type="number" min="1" max="30" value="1">
+                    </label>
+                </div>
+
+                <div class="button-row">
+                    <button type="submit" class="primary-button" id="fetchButton">Fetch Activity</button>
+                    <button type="button" class="secondary-button" id="generateButton">Generate Standup</button>
+                </div>
+            </form>
+
+            <div class="message-area" id="messageArea" role="status"></div>
+        </section>
+
+        <section class="panel activity-panel" aria-label="Activity preview">
+            <div class="panel-header split">
+                <div>
+                    <h2>Activity Preview</h2>
+                    <p id="activityMeta">No activity loaded</p>
+                </div>
+                <div class="metric-strip">
+                    <span><strong id="commitCount">0</strong> commits</span>
+                    <span><strong id="prCount">0</strong> PRs</span>
+                </div>
+            </div>
+
+            <div class="tabs" role="tablist">
+                <button class="tab active" type="button" data-tab="commits">Commits</button>
+                <button class="tab" type="button" data-tab="prs">Pull Requests</button>
+            </div>
+
+            <div class="list-view" id="commitsList"></div>
+            <div class="list-view hidden" id="prsList"></div>
+        </section>
+
+        <section class="panel standup-panel" aria-label="Generated standup">
+            <div class="panel-header split">
+                <div>
+                    <h2>Generated Standup</h2>
+                    <p id="standupMeta">Not generated yet</p>
+                </div>
+                <button type="button" class="icon-button" id="copyButton" title="Copy standup">Copy</button>
+            </div>
+            <pre id="standupText" class="standup-output">Generate a standup to see the result here.</pre>
+        </section>
+
+        <section class="panel history-panel" aria-label="Standup history">
+            <div class="panel-header split">
+                <div>
+                    <h2>History</h2>
+                    <p id="historyMeta">Recent generated standups</p>
+                </div>
+                <button type="button" class="secondary-button compact" id="historyButton">Refresh</button>
+            </div>
+            <div class="history-list" id="historyList"></div>
+        </section>
+    </main>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
