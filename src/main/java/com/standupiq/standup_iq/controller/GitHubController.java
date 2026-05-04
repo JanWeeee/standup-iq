@@ -1,21 +1,30 @@
 package com.standupiq.standup_iq.controller;
 
+import com.standupiq.standup_iq.dto.DebugTimeResponse;
 import com.standupiq.standup_iq.dto.GitHubActivityResponse;
 import com.standupiq.standup_iq.service.GitHubService;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
 
+@Tag(name = "GitHub Activity", description = "Fetches commits and pull requests from GitHub")
 @RestController
 @RequestMapping("/api/github")
 public class GitHubController {
 
-    @Autowired
-    private GitHubService gitHubService;
+    private final GitHubService gitHubService;
 
+    public GitHubController(GitHubService gitHubService) {
+        this.gitHubService = gitHubService;
+    }
+
+    @Operation(
+            summary = "Fetch GitHub activity",
+            description = "Returns commits and pull requests for a developer. Optional owner, repo, and branch parameters limit the lookup to a specific repository."
+    )
     @GetMapping("/activity/{username}")
     public ResponseEntity<GitHubActivityResponse> getActivity(
             @PathVariable String username,
@@ -27,8 +36,9 @@ public class GitHubController {
         return ResponseEntity.ok(gitHubService.getActivity(username, owner, repo, branch, days));
     }
 
+    @Operation(summary = "Preview time window", description = "Shows the UTC cutoff date used for a GitHub activity lookup.")
     @GetMapping("/debug/{username}")
-    public Map<String, Object> debug(@PathVariable String username, @RequestParam(defaultValue = "1") int days) {
+    public DebugTimeResponse debug(@PathVariable String username, @RequestParam(defaultValue = "1") int days) {
         if (days < 1 || days > 30) {
             throw new IllegalArgumentException("days must be between 1 and 30");
         }
@@ -36,11 +46,11 @@ public class GitHubController {
         Instant currentTime = Instant.now();
         String since = currentTime.minus(days, ChronoUnit.DAYS).toString();
 
-        return Map.of(
-                "sinceDate", since,
-                "currentTimeUtc", currentTime.toString(),
-                "days", days,
-                "username", username
+        return new DebugTimeResponse(
+                currentTime.toString(),
+                days,
+                since,
+                username
         );
     }
 

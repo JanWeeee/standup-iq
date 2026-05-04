@@ -1,21 +1,26 @@
 package com.standupiq.standup_iq.controller;
 
+import com.standupiq.standup_iq.dto.HealthResponse;
+import com.standupiq.standup_iq.entity.User;
+import com.standupiq.standup_iq.repository.UserRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.standupiq.standup_iq.entity.User;
-import com.standupiq.standup_iq.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.Map;
-
+@Tag(name = "Health", description = "Application health and local database smoke checks")
 @RestController
 @RequestMapping("/api")
 public class HealthController {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
 
+    public HealthController(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Operation(summary = "Create a sample user", description = "Development-only endpoint that verifies PostgreSQL writes.")
     @GetMapping("/users/test")
     public String createTestUser() {
         User user = new User();
@@ -27,12 +32,13 @@ public class HealthController {
         return "User saved successfully! Check your database.";
     }
 
+    @Operation(summary = "Check application health", description = "Returns a lightweight JSON health response.")
     @GetMapping("/health")
-    public Map<String, String> health() {
-        return Map.of(
-                "status", "UP",
-                "app", "StandupIQ",
-                "message", "Welcome to StandupIQ - Your AI Standup Generator"
+    public HealthResponse health() {
+        return new HealthResponse(
+                "UP",
+                "StandupIQ",
+                "Welcome to StandupIQ - Your AI Standup Generator"
         );
     }
 }

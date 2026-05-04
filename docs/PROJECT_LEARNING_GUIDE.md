@@ -17,10 +17,12 @@ Do not put real API keys or tokens in this document. Secrets belong only in `.en
 9. Database And Persistence
 10. GitHub Integration
 11. Gemini AI Integration
+11A. Slack Delivery
+11B. Scheduled Generation
 12. Frontend UI Flow
 13. Error Handling
 14. Configuration And Secrets
-15. Build, Test, Docker, And CI/CD
+15. Build, Test, Docker, And Deployment
 16. API Reference
 17. Resume Talking Points
 18. Limitations And Future Improvements
@@ -67,9 +69,13 @@ Currently implemented:
 - Standup history endpoint.
 - Global error handling.
 - Static browser UI served from Spring Boot.
+- Swagger/OpenAPI documentation at `/swagger-ui.html`.
+- Optional Slack webhook delivery.
+- Scheduled weekday standup generation.
+- Service-level unit tests with JUnit 5 and Mockito.
 - Maven wrapper configuration.
-- Dockerfile.
-- GitHub Actions workflow placeholder.
+- Multi-stage Dockerfile.
+- Railway deployment configuration.
 - Professional README.
 
 Important endpoints:
@@ -78,6 +84,7 @@ Important endpoints:
 - `GET /api/github/activity/{username}`
 - `GET /api/standup/generate/{username}`
 - `GET /api/standup/history/{username}`
+- `GET /swagger-ui.html`
 - Browser UI: `GET /`
 
 ## 4. Architecture Overview
@@ -261,10 +268,14 @@ com.standupiq.standup_iq
 │   ├── GitHubController.java
 │   ├── HealthController.java
 │   └── StandupController.java
+├── config
+│   └── OpenApiConfig.java
 ├── dto
 │   ├── ApiErrorResponse.java
 │   ├── CommitSummary.java
+│   ├── DebugTimeResponse.java
 │   ├── GitHubActivityResponse.java
+│   ├── HealthResponse.java
 │   ├── PullRequestSummary.java
 │   ├── StandupHistoryResponse.java
 │   └── StandupResponse.java
@@ -280,6 +291,8 @@ com.standupiq.standup_iq
 │   └── UserRepository.java
 ├── service
 │   ├── GitHubService.java
+│   ├── ScheduledStandupJob.java
+│   ├── SlackService.java
 │   └── StandupService.java
 └── StandupIqApplication.java
 ```
@@ -301,7 +314,7 @@ Root-level infrastructure:
 ```text
 Dockerfile
 .dockerignore
-.github/workflows/deploy.yml
+railway.json
 .mvn/wrapper/maven-wrapper.properties
 pom.xml
 README.md
@@ -323,9 +336,13 @@ This section maps every major technology to the files where it is used.
 | Flyway | Database migrations | `pom.xml`, `V1__init.sql`, Flyway properties |
 | Lombok | Reduces boilerplate | `@Data`, `@Slf4j` in entities/services |
 | Gemini API | AI standup generation | `StandupService.java` |
+| Slack incoming webhooks | Optional standup delivery | `SlackService.java` |
+| Spring Scheduler | Automated daily generation | `ScheduledStandupJob.java`, `StandupIqApplication.java` |
+| Springdoc OpenAPI | Swagger API docs | `OpenApiConfig.java`, controller annotations |
+| JUnit 5 and Mockito | Unit testing | `src/test/java/...` |
 | Maven | Build and dependency management | `pom.xml`, `.mvn/wrapper/...`, `mvnw` |
 | Docker | Container packaging | `Dockerfile`, `.dockerignore` |
-| GitHub Actions | CI/CD placeholder | `.github/workflows/deploy.yml` |
+| Railway | Deployment target config | `railway.json`, Dockerfile |
 | HTML/CSS/JS | Browser UI | `src/main/resources/static/*` |
 
 ## 8. Backend Concepts
@@ -344,6 +361,7 @@ Entry point:
 
 ```java
 @SpringBootApplication
+@EnableScheduling
 public class StandupIqApplication {
     public static void main(String[] args) {
         SpringApplication.run(StandupIqApplication.class, args);
@@ -356,6 +374,8 @@ public class StandupIqApplication {
 - `@Configuration`
 - `@EnableAutoConfiguration`
 - `@ComponentScan`
+
+`@EnableScheduling` activates Spring's scheduled task support so `ScheduledStandupJob` can run from a cron expression.
 
 Interview explanation:
 
@@ -395,6 +415,8 @@ Files:
 
 - `GitHubService.java`
 - `StandupService.java`
+- `SlackService.java`
+- `ScheduledStandupJob.java`
 
 Why services exist:
 
@@ -407,6 +429,8 @@ In this project:
 
 - `GitHubService` fetches commits and pull requests.
 - `StandupService` creates prompt, calls Gemini, saves standup.
+- `SlackService` posts generated standups to Slack via webhook.
+- `ScheduledStandupJob` automates generation on a configurable cron schedule.
 
 ### 8.4 Dependency Injection
 
@@ -777,6 +801,71 @@ Why fallback matters:
 - Demonstrates resilient design.
 - Avoids total failure when external AI API is down.
 
+## 11A. Slack Delivery
+
+File:
+
+```text
+SlackService.java
+```
+
+Purpose:
+
+- Sends generated standups to a Slack channel.
+- Uses an incoming webhook URL from environment variables.
+- Returns `false` instead of crashing if Slack is disabled or misconfigured.
+
+Config:
+
+```properties
+SLACK_ENABLED=true
+SLACK_WEBHOOK_URL=your_slack_webhook_url
+```
+
+Endpoint usage:
+
+```text
+GET /api/standup/generate/{username}?days=1&sendToSlack=true
+```
+
+Interview explanation:
+
+> I added Slack delivery as an optional side effect after standup generation. The generated standup is still saved even if Slack delivery fails, so an external notification failure does not break the core workflow.
+
+## 11B. Scheduled Generation
+
+File:
+
+```text
+ScheduledStandupJob.java
+```
+
+Purpose:
+
+- Automatically generates a standup on a cron schedule.
+- Can optionally send the generated standup to Slack.
+- Is disabled by default so local development does not accidentally call external APIs.
+
+Config:
+
+```properties
+STANDUP_SCHEDULER_ENABLED=true
+STANDUP_SCHEDULER_CRON=0 45 8 * * MON-FRI
+STANDUP_SCHEDULER_ZONE=Asia/Kolkata
+STANDUP_SCHEDULER_USERNAME=JanWeeee
+STANDUP_SCHEDULER_OWNER=JanWeeee
+STANDUP_SCHEDULER_REPO=standup-iq
+STANDUP_SCHEDULER_BRANCH=main
+STANDUP_SCHEDULER_DAYS=1
+STANDUP_SCHEDULER_SEND_TO_SLACK=true
+```
+
+Concept:
+
+- `@Scheduled` runs a method based on a cron expression.
+- The job reuses `GitHubService`, `StandupService`, and `SlackService`.
+- Reusing services avoids duplicating business logic between manual and automated flows.
+
 ## 12. Frontend UI Flow
 
 Files:
@@ -800,6 +889,7 @@ Activity Source:
 - Repository.
 - Branch.
 - Days.
+- Send generated standup to Slack checkbox.
 - Fetch Activity button.
 - Generate Standup button.
 
@@ -920,8 +1010,13 @@ Important:
 Current placeholders:
 
 ```properties
+spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/standupiq}
+spring.datasource.username=${SPRING_DATASOURCE_USERNAME:standupuser}
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:standup123}
 github.token=${GITHUB_TOKEN:}
 gemini.api.key=${GEMINI_API_KEY:}
+slack.enabled=${SLACK_ENABLED:false}
+slack.webhook.url=${SLACK_WEBHOOK_URL:}
 ```
 
 Why the `:` exists:
@@ -937,7 +1032,17 @@ It means:
 
 This prevents the app from failing during startup when the variable is missing.
 
-## 15. Build, Test, Docker, And CI/CD
+Scheduler config is also environment-driven:
+
+```properties
+standup.scheduler.enabled=${STANDUP_SCHEDULER_ENABLED:false}
+standup.scheduler.cron=${STANDUP_SCHEDULER_CRON:0 45 8 * * MON-FRI}
+standup.scheduler.username=${STANDUP_SCHEDULER_USERNAME:}
+```
+
+This is production-friendly because deployment platforms such as Railway provide configuration through environment variables instead of committed files.
+
+## 15. Build, Test, Docker, And Deployment
 
 ### 15.1 Maven
 
@@ -988,9 +1093,17 @@ Purpose:
 Current Dockerfile:
 
 ```dockerfile
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /workspace
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+RUN ./mvnw -q -DskipTests dependency:go-offline
+COPY src src
+RUN ./mvnw -q -DskipTests package
+
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY target/standup-iq-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build /workspace/target/standup-iq-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
@@ -998,34 +1111,44 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 Build:
 
 ```bash
-./mvnw clean package
 docker build -t standup-iq .
 docker run --env-file .env -p 8080:8080 standup-iq
 ```
 
-### 15.4 GitHub Actions
+### 15.4 Unit Tests
+
+Tests live under:
+
+```text
+src/test/java/com/standupiq/standup_iq/service
+```
+
+Current test coverage:
+
+- `StandupServiceTest`: fallback generation, persistence mapping, history behavior.
+- `GitHubServiceTest`: missing token and invalid day validation.
+- `SlackServiceTest`: disabled and missing webhook behavior.
+- `ScheduledStandupJobTest`: scheduler skip/run paths.
+
+### 15.5 Railway Deployment
 
 File:
 
 ```text
-.github/workflows/deploy.yml
+railway.json
 ```
 
-Current flow:
+Railway uses the Dockerfile to build and run the app. Required variables:
 
-- Trigger on push to `main`.
-- Checkout code.
-- Set up Java 21.
-- Build jar.
-- Build Docker image.
-- Placeholder deployment step.
+```properties
+SPRING_DATASOURCE_URL=jdbc:postgresql://host:port/database
+SPRING_DATASOURCE_USERNAME=your_database_user
+SPRING_DATASOURCE_PASSWORD=your_database_password
+GITHUB_TOKEN=your_github_token
+GEMINI_API_KEY=your_gemini_key
+```
 
-Future:
-
-- Add Railway deployment.
-- Add test reporting.
-- Add Docker registry push.
-- Add environment secrets.
+GitHub Actions is not included yet because pushing workflow files requires a GitHub token with `workflow` permission. This can be added later after token scopes are updated.
 
 ## 16. API Reference
 
@@ -1074,7 +1197,7 @@ Returns:
 ### Generate Standup
 
 ```text
-GET /api/standup/generate/{username}?owner={owner}&repo={repo}&branch={branch}&days=7
+GET /api/standup/generate/{username}?owner={owner}&repo={repo}&branch={branch}&days=7&sendToSlack=false
 ```
 
 Does:
@@ -1082,6 +1205,7 @@ Does:
 - Fetches activity.
 - Generates Gemini standup.
 - Saves to database.
+- Optionally posts the result to Slack.
 - Returns activity + standup text.
 
 ### Standup History
@@ -1092,11 +1216,19 @@ GET /api/standup/history/{username}
 
 Returns saved standups newest first.
 
+### Swagger UI
+
+```text
+GET /swagger-ui.html
+```
+
+Opens interactive API documentation generated from the Spring controllers.
+
 ## 17. Resume Talking Points
 
 Use this explanation:
 
-> StandupIQ is a Java 21 Spring Boot application that generates AI-powered daily standups from real GitHub activity. I built REST APIs that fetch commits and pull requests through GitHub's REST API, including a fallback strategy using direct repository endpoints to handle private repos and search indexing limitations. I use Gemini for natural-language generation, PostgreSQL for persistence, Flyway for schema migrations, Docker for containerization, and GitHub Actions for CI/CD readiness. The app also includes a browser UI for fetching activity, previewing commits, generating standups, and viewing history.
+> StandupIQ is a Java 21 Spring Boot application that generates AI-powered daily standups from real GitHub activity. I built REST APIs that fetch commits and pull requests through GitHub's REST API, including a fallback strategy using direct repository endpoints to handle private repos and search indexing limitations. I use Gemini for natural-language generation, PostgreSQL for persistence, Flyway for schema migrations, Swagger for API documentation, Slack webhooks and Spring Scheduler for delivery automation, Docker for containerization, and Railway-ready deployment config. The app also includes a browser UI for fetching activity, previewing commits, generating standups, and viewing history.
 
 Key strengths:
 
@@ -1107,7 +1239,10 @@ Key strengths:
 - Clean layered architecture.
 - Error handling.
 - Configurable time range.
-- Docker and CI/CD readiness.
+- Docker and Railway deployment readiness.
+- Swagger API docs.
+- Unit-tested service behavior.
+- Slack and scheduled delivery.
 - Browser demo.
 
 What to highlight:
@@ -1125,23 +1260,20 @@ Current limitations:
 - Uses one GitHub token from environment.
 - No OAuth login yet.
 - No Jira integration yet.
-- No Slack/email delivery yet.
 - UI is static HTML/CSS/JS, not React.
 - No pagination controls in UI.
-- No advanced test coverage yet.
+- No integration tests using Testcontainers yet.
+- No team dashboard yet.
 
 Best next improvements:
 
 1. GitHub OAuth so each user connects their own account.
 2. Jira integration for ticket context.
-3. Slack webhook delivery.
-4. Scheduled daily generation.
-5. React frontend.
-6. OpenAPI/Swagger docs.
-7. Unit tests for services.
-8. Integration tests using Testcontainers.
-9. Railway deployment.
-10. Team dashboard.
+3. React frontend.
+4. Integration tests using Testcontainers.
+5. Team dashboard.
+6. GitHub Actions after adding token `workflow` scope.
+7. Email delivery for users who do not use Slack.
 
 ## 19. Interview Questions And Answers
 
@@ -1326,15 +1458,15 @@ Not fully. It currently uses one backend GitHub token. A production multi-user v
 
 #### Q39. What does the Dockerfile do?
 
-It starts from a Java 21 runtime image, copies the Spring Boot jar, exposes port 8080, and runs the jar with `java -jar`.
+It uses a Java 21 build stage to package the Spring Boot jar, then copies that jar into a smaller Java 21 runtime image, exposes port 8080, and runs it with `java -jar`.
 
 #### Q40. Why use Docker?
 
 Docker packages the app and runtime environment consistently, making deployment more reliable.
 
-#### Q41. What does GitHub Actions do?
+#### Q41. How is this ready for Railway deployment?
 
-The workflow builds the app and Docker image on pushes to `main`. It currently has a placeholder deployment step.
+The repo has `railway.json`, a Dockerfile that builds the jar from source, and environment-variable-based configuration for database, GitHub, Gemini, Slack, and scheduler settings.
 
 ### Frontend Questions
 
@@ -1374,7 +1506,7 @@ OAuth, encrypted token storage, deployment environment configuration, better tes
 
 #### Q50. How would you explain this project in one minute?
 
-StandupIQ is a Spring Boot and Java 21 backend with a lightweight browser UI that turns GitHub commits and pull requests into AI-generated daily standups. It uses GitHub REST APIs for source-of-truth activity, Gemini for natural-language generation, PostgreSQL and Flyway for persistence, and Docker/GitHub Actions for deployment readiness. I designed it with DTOs, service separation, error handling, private repository support, and standup history so it looks like a real production-oriented backend project.
+StandupIQ is a Spring Boot and Java 21 backend with a lightweight browser UI that turns GitHub commits and pull requests into AI-generated daily standups. It uses GitHub REST APIs for source-of-truth activity, Gemini for natural-language generation, PostgreSQL and Flyway for persistence, Swagger for API docs, Slack and scheduler support for delivery automation, and Docker/Railway config for deployment readiness. I designed it with DTOs, service separation, error handling, private repository support, unit tests, and standup history so it looks like a real production-oriented backend project.
 
 ## 20. Study Roadmap
 
@@ -1392,9 +1524,9 @@ Use this order to learn the project deeply:
 10. Trace one standup generation request from browser to Gemini to database.
 11. Read `GlobalExceptionHandler`.
 12. Read frontend `index.html`, `styles.css`, and `app.js`.
-13. Read `Dockerfile` and GitHub Actions workflow.
+13. Read `Dockerfile`, `railway.json`, `SlackService`, and `ScheduledStandupJob`.
 14. Practice interview questions from this guide.
-15. Add one improvement yourself, such as POST generation or Swagger docs.
+15. Add one improvement yourself, such as GitHub OAuth or Testcontainers.
 
 ## Quick Demo Script
 
@@ -1408,8 +1540,9 @@ Use this during a resume walkthrough:
 6. Click Generate Standup.
 7. Explain that the backend sends compact activity to Gemini.
 8. Show the generated Yesterday, Today, Blockers text.
-9. Show History.
-10. Explain that generated standups are stored in PostgreSQL through JPA and Flyway-managed schema.
+9. Show the optional Slack delivery checkbox and Swagger UI.
+10. Show History.
+11. Explain that generated standups are stored in PostgreSQL through JPA and Flyway-managed schema.
 
 ## Final Mental Model
 
@@ -1424,6 +1557,9 @@ AI standup generator
 
 Database history
     stores generated output
+
+Slack and scheduler
+    deliver generated standups automatically
 
 Browser UI
     makes it easy to use and demo

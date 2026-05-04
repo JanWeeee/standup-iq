@@ -10,6 +10,7 @@ const elements = {
     repo: document.querySelector("#repo"),
     branch: document.querySelector("#branch"),
     days: document.querySelector("#days"),
+    sendToSlack: document.querySelector("#sendToSlack"),
     rangeButtons: document.querySelectorAll(".range-button"),
     fetchButton: document.querySelector("#fetchButton"),
     generateButton: document.querySelector("#generateButton"),
@@ -94,7 +95,7 @@ async function generateStandup() {
     setBusy(true, "Generating standup...");
 
     try {
-        const response = await requestJson(buildUrl("/api/standup/generate"));
+        const response = await requestJson(buildUrl("/api/standup/generate", { includeSlack: true }));
         state.activity = response.activity;
         renderActivity(response.activity);
         renderStandup(response);
@@ -143,7 +144,7 @@ async function copyStandup() {
     }
 }
 
-function buildUrl(basePath) {
+function buildUrl(basePath, options = {}) {
     const username = encodeURIComponent(elements.username.value.trim());
     const params = new URLSearchParams();
 
@@ -151,6 +152,9 @@ function buildUrl(basePath) {
     addParam(params, "owner", elements.owner.value);
     addParam(params, "repo", elements.repo.value);
     addParam(params, "branch", elements.branch.value);
+    if (options.includeSlack && elements.sendToSlack.checked) {
+        params.set("sendToSlack", "true");
+    }
 
     return `${basePath}/${username}?${params.toString()}`;
 }
@@ -241,7 +245,12 @@ function renderPullRequest(pr) {
 
 function renderStandup(response) {
     elements.standupText.textContent = response.standupText || "No standup text returned.";
-    elements.standupMeta.textContent = `Saved as #${response.id} at ${formatDate(response.generatedAt)}`;
+    const delivery = response.slackDelivered === true
+        ? " / Slack delivered"
+        : response.slackDelivered === false
+            ? " / Slack not sent"
+            : "";
+    elements.standupMeta.textContent = `Saved as #${response.id} at ${formatDate(response.generatedAt)}${delivery}`;
 }
 
 function renderHistory(history) {
