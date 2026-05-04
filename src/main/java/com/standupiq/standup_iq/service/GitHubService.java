@@ -60,7 +60,7 @@ public class GitHubService {
         fetchCommitSearchResults(username, since).forEach(commit -> commitsBySha.putIfAbsent(commit.sha(), commit));
 
         for (GitHubRepositoryResponse repository : repositories) {
-            fetchRepositoryCommits(repository, username, hasRepoScope ? branch : null, since)
+            fetchRepositoryCommitsSafely(repository, username, hasRepoScope ? branch : null, since)
                     .forEach(commit -> commitsBySha.putIfAbsent(commit.sha(), commit));
         }
 
@@ -69,7 +69,7 @@ public class GitHubService {
                 .forEach(pr -> prsByKey.putIfAbsent(pullRequestKey(pr), pr));
 
         for (GitHubRepositoryResponse repository : repositories) {
-            fetchRepositoryPullRequests(repository, username, since)
+            fetchRepositoryPullRequestsSafely(repository, username, since)
                     .forEach(pr -> prsByKey.putIfAbsent(pullRequestKey(pr), pr));
         }
 
@@ -100,7 +100,7 @@ public class GitHubService {
         Map<String, GitHubRepositoryResponse> repositoriesByName = new LinkedHashMap<>();
 
         fetchPublicRepositories(username).forEach(repository -> repositoriesByName.putIfAbsent(repository.fullName(), repository));
-        fetchAuthenticatedRepositories().forEach(repository -> repositoriesByName.putIfAbsent(repository.fullName(), repository));
+        fetchAuthenticatedRepositories(username).forEach(repository -> repositoriesByName.putIfAbsent(repository.fullName(), repository));
 
         if (repositoriesByName.isEmpty()) {
             throw new ResourceNotFoundException("No GitHub repositories found for user: " + username);
@@ -128,7 +128,7 @@ public class GitHubService {
         return repositories;
     }
 
-    private List<GitHubRepositoryResponse> fetchAuthenticatedRepositories() {
+    private List<GitHubRepositoryResponse> fetchAuthenticatedRepositories(String username) {
         List<GitHubRepositoryResponse> repositories = new ArrayList<>();
         for (int page = 1; page <= MAX_REPO_PAGES; page++) {
             int currentPage = page;
@@ -143,7 +143,10 @@ public class GitHubService {
             if (pageResults.isEmpty()) {
                 break;
             }
-            repositories.addAll(pageResults);
+            pageResults.stream()
+                    .filter(repository -> repository.owner() != null)
+                    .filter(repository -> username.equalsIgnoreCase(repository.owner().login()))
+                    .forEach(repositories::add);
         }
         return repositories;
     }
@@ -190,6 +193,21 @@ public class GitHubService {
                 .toList();
     }
 
+    private List<CommitSummary> fetchRepositoryCommitsSafely(
+            GitHubRepositoryResponse repository,
+            String username,
+            String branch,
+            Instant since
+    ) {
+        try {
+            return fetchRepositoryCommits(repository, username, branch, since);
+        } catch (ExternalServiceException e) {
+            log.warn("Skipping commit lookup for {} because GitHub returned an error: {}",
+                    repository.fullName(), e.getMessage());
+            return List.of();
+        }
+    }
+
     private List<PullRequestSummary> fetchPullRequestSearchResults(String username, String repository, Instant since) {
         String searchQuery = "author:" + username + " type:pr updated:>" + since;
         if (hasText(repository)) {
@@ -231,6 +249,20 @@ public class GitHubService {
                 .map(pr -> toPullRequestSummary(pr, repository.fullName()))
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private List<PullRequestSummary> fetchRepositoryPullRequestsSafely(
+            GitHubRepositoryResponse repository,
+            String username,
+            Instant since
+    ) {
+        try {
+            return fetchRepositoryPullRequests(repository, username, since);
+        } catch (ExternalServiceException e) {
+            log.warn("Skipping pull request lookup for {} because GitHub returned an error: {}",
+                    repository.fullName(), e.getMessage());
+            return List.of();
+        }
     }
 
     private CommitSummary toCommitSummary(GitHubCommitResponse commit, String repository) {
