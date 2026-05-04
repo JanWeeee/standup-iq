@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wireEvents();
     checkHealth();
     renderEmptyActivity();
-    fetchHistory({ silent: true });
+    renderHistory([]);
 });
 
 function wireEvents() {
@@ -113,7 +113,16 @@ async function fetchHistory({ silent }) {
         setMessage("Loading history...");
     }
 
-    const username = encodeURIComponent(elements.username.value.trim() || "JanWeeee");
+    const usernameValue = elements.username.value.trim();
+    if (!usernameValue) {
+        renderHistory([]);
+        if (!silent) {
+            setMessage("Enter a GitHub username to load history.", true);
+        }
+        return;
+    }
+
+    const username = encodeURIComponent(usernameValue);
 
     try {
         const history = await requestJson(`/api/standup/history/${username}`);
@@ -145,7 +154,12 @@ async function copyStandup() {
 }
 
 function buildUrl(basePath, options = {}) {
-    const username = encodeURIComponent(elements.username.value.trim());
+    const usernameValue = elements.username.value.trim();
+    if (!usernameValue) {
+        throw new Error("Enter a GitHub username first.");
+    }
+
+    const username = encodeURIComponent(usernameValue);
     const params = new URLSearchParams();
 
     params.set("days", normalizeDays());
