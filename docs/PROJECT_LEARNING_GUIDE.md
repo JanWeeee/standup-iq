@@ -163,7 +163,7 @@ Purpose:
 URL:
 
 ```text
-GET /api/github/activity/JanWeeee?owner=JanWeeee&repo=standup-iq&branch=feature/phase-1-2-3-foundation&days=7
+GET /api/github/activity/JanWeeee?days=7
 ```
 
 Flow:
@@ -190,7 +190,7 @@ Why this matters:
 URL:
 
 ```text
-GET /api/standup/generate/JanWeeee?owner=JanWeeee&repo=standup-iq&branch=feature/phase-1-2-3-foundation&days=7
+GET /api/standup/generate/JanWeeee?days=7
 ```
 
 Flow:
@@ -252,7 +252,7 @@ Flow:
 index.html loads
   -> styles.css styles page
   -> app.js checks /api/health
-  -> user enters GitHub details
+  -> user enters GitHub username and time range
   -> Fetch Activity calls /api/github/activity
   -> Generate Standup calls /api/standup/generate
   -> History calls /api/standup/history
@@ -885,11 +885,7 @@ http://localhost:8080/
 Activity Source:
 
 - GitHub username.
-- Owner.
-- Repository.
-- Branch.
 - Days.
-- Send generated standup to Slack checkbox.
 - Fetch Activity button.
 - Generate Standup button.
 
@@ -1179,25 +1175,28 @@ Returns current UTC time and calculated `sinceDate`.
 ### GitHub Activity
 
 ```text
-GET /api/github/activity/{username}?owner={owner}&repo={repo}&branch={branch}&days=7
+GET /api/github/activity/{username}?days=7
 ```
 
 Returns:
 
 - username
-- owner
-- repo
-- branch
 - days
 - totalCommits
 - totalPRs
 - commits
 - pullRequests
 
+Optional API parameters:
+
+- `owner`
+- `repo`
+- `branch`
+
 ### Generate Standup
 
 ```text
-GET /api/standup/generate/{username}?owner={owner}&repo={repo}&branch={branch}&days=7&sendToSlack=false
+GET /api/standup/generate/{username}?days=7&sendToSlack=false
 ```
 
 Does:
@@ -1533,7 +1532,7 @@ Use this order to learn the project deeply:
 Use this during a resume walkthrough:
 
 1. Open `http://localhost:8080/`.
-2. Show the form with username, repo, branch, and time range.
+2. Show the form with username and time range.
 3. Click Fetch Activity.
 4. Explain that the backend calls GitHub search plus direct repo APIs.
 5. Show commits and PRs preview.

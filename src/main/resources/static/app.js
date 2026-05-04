@@ -6,11 +6,7 @@ const state = {
 const elements = {
     form: document.querySelector("#activityForm"),
     username: document.querySelector("#username"),
-    owner: document.querySelector("#owner"),
-    repo: document.querySelector("#repo"),
-    branch: document.querySelector("#branch"),
     days: document.querySelector("#days"),
-    sendToSlack: document.querySelector("#sendToSlack"),
     rangeButtons: document.querySelectorAll(".range-button"),
     fetchButton: document.querySelector("#fetchButton"),
     generateButton: document.querySelector("#generateButton"),
@@ -95,7 +91,7 @@ async function generateStandup() {
     setBusy(true, "Generating standup...");
 
     try {
-        const response = await requestJson(buildUrl("/api/standup/generate", { includeSlack: true }));
+        const response = await requestJson(buildUrl("/api/standup/generate"));
         state.activity = response.activity;
         renderActivity(response.activity);
         renderStandup(response);
@@ -153,7 +149,7 @@ async function copyStandup() {
     }
 }
 
-function buildUrl(basePath, options = {}) {
+function buildUrl(basePath) {
     const usernameValue = elements.username.value.trim();
     if (!usernameValue) {
         throw new Error("Enter a GitHub username first.");
@@ -163,21 +159,8 @@ function buildUrl(basePath, options = {}) {
     const params = new URLSearchParams();
 
     params.set("days", normalizeDays());
-    addParam(params, "owner", elements.owner.value);
-    addParam(params, "repo", elements.repo.value);
-    addParam(params, "branch", elements.branch.value);
-    if (options.includeSlack && elements.sendToSlack.checked) {
-        params.set("sendToSlack", "true");
-    }
 
     return `${basePath}/${username}?${params.toString()}`;
-}
-
-function addParam(params, key, value) {
-    const trimmed = value.trim();
-    if (trimmed) {
-        params.set(key, trimmed);
-    }
 }
 
 function normalizeDays() {

@@ -28,21 +28,6 @@
                     <input id="username" name="username" placeholder="e.g. octocat" autocomplete="off" required>
                 </label>
 
-                <label>
-                    <span>Owner</span>
-                    <input id="owner" name="owner" placeholder="e.g. octocat" autocomplete="off">
-                </label>
-
-                <label>
-                    <span>Repository</span>
-                    <input id="repo" name="repo" placeholder="e.g. Hello-World" autocomplete="off">
-                </label>
-
-                <label>
-                    <span>Branch</span>
-                    <input id="branch" name="branch" placeholder="e.g. main" autocomplete="off">
-                </label>
-
                 <div class="range-row" role="group" aria-label="Time range">
                     <button type="button" class="range-button active" data-days="1">1 day</button>
                     <button type="button" class="range-button" data-days="7">7 days</button>
@@ -51,11 +36,6 @@
                         <input id="days" name="days" type="number" min="1" max="30" value="1">
                     </label>
                 </div>
-
-                <label class="checkbox-row">
-                    <input id="sendToSlack" name="sendToSlack" type="checkbox">
-                    <span>Send generated standup to Slack</span>
-                </label>
 
                 <div class="button-row">
                     <button type="submit" class="primary-button" id="fetchButton">Fetch Activity</button>

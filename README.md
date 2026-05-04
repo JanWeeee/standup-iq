@@ -77,6 +77,8 @@ The browser demo runs on:
 http://localhost:8080/
 ```
 
+The public browser demo asks only for a GitHub username and time range. Advanced API users can still pass `owner`, `repo`, and `branch` query parameters directly.
+
 Swagger UI runs on:
 
 ```text
